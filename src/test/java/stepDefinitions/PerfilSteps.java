@@ -1,7 +1,6 @@
 package stepDefinitions;
 
 import utilidades.ExcelUtils;
-import utilidades.Utility;
 import io.cucumber.java.es.Cuando;
 import io.cucumber.java.es.Entonces;
 import io.cucumber.java.es.Y;
@@ -20,10 +19,7 @@ import java.util.List;
 /**
  * PPT 3.1.1 + 3.2.1 - Caso 13: Gestión de perfil en My Info.
  * Combina Data-Driven (Excel) con capturas de evidencia.
- *
- * Cambio respecto a versión anterior:
- * - ExcelUtils se usa como instancia en lugar de métodos estáticos,
- *   consistente con el rediseño de la clase para evitar estado compartido.
+ * (Capturas delegadas al Hook global)
  */
 public class PerfilSteps {
 
@@ -43,10 +39,6 @@ public class PerfilSteps {
         return new WebDriverWait(driver(), Duration.ofSeconds(15));
     }
 
-    /**
-     * Espera a que el spinner de carga desaparezca antes de interactuar con elementos.
-     * Se absorbe la excepción si el spinner nunca aparece (respuesta del servidor muy rápida).
-     */
     private void esperarSinSpinner() {
         try {
             new WebDriverWait(driver(), Duration.ofSeconds(5))
@@ -60,13 +52,11 @@ public class PerfilSteps {
         By menuMyInfo = By.xpath("//span[normalize-space()='My Info']");
         espera().until(ExpectedConditions.elementToBeClickable(menuMyInfo)).click();
         esperarSinSpinner();
-        // OrangeHRM redirige a viewPersonalDetails con el ID del empleado autenticado
         espera().until(ExpectedConditions.urlContains("/pim/viewPersonalDetails"));
     }
 
     @Y("actualiza el campo de perfil de la fila {int} del archivo de perfil")
     public void actualiza_campo_perfil_excel(int fila) throws IOException {
-        // Instancia de ExcelUtils: cada step lee su propia hoja sin afectar a otros steps
         ExcelUtils excel = new ExcelUtils(
             "src/test/resources/testData/dataPerfil.xlsx", "Perfil");
         campoActualizado = excel.getCellData(fila, 1);
@@ -82,7 +72,6 @@ public class PerfilSteps {
                 try {
                     WebElement campo = espera().until(
                         ExpectedConditions.visibilityOfElementLocated(inputNickname));
-                    // CTRL+A + DELETE para limpiar campos React que ignoran .clear()
                     campo.sendKeys(Keys.chord(Keys.CONTROL, "a"), Keys.DELETE);
                     campo.sendKeys(valorNuevo);
                 } catch (Exception e) {
@@ -122,7 +111,6 @@ public class PerfilSteps {
                 break;
 
             default:
-                // Fallback genérico: busca el input por el texto del label correspondiente
                 By inputGen = By.xpath(
                     "//label[contains(normalize-space(),'" + campoActualizado + "')]" +
                     "/parent::div/following-sibling::div//input");
@@ -153,7 +141,6 @@ public class PerfilSteps {
 
     @Entonces("el campo debe reflejar el nuevo valor")
     public void campo_refleja_nuevo_valor() {
-        // El guardado en My Info no redirige; verificar que seguimos en la misma página
         Assert.assertTrue("No está en la página My Info",
             driver().getCurrentUrl().contains("/pim/"));
         System.out.println("CASO 13 OK: Campo '" + campoActualizado +
@@ -161,11 +148,9 @@ public class PerfilSteps {
     }
 
     @Y("se captura screenshot como evidencia del perfil")
-    public void captura_screenshot_perfil() throws IOException {
-        String nombreCampo = campoActualizado.replaceAll("[^a-zA-Z0-9]", "_");
-        Utility.captureScreenShot(driver(),
-            "evidencias/CP13_Perfil_" + nombreCampo + "_" +
-            Utility.GetTimeStampValue() + ".png");
-        System.out.println("CASO 13: Screenshot de perfil guardado");
+    public void captura_screenshot_perfil() {
+        // Mantenemos el método para no romper tu archivo .feature
+        // pero eliminamos la línea de captura para que no se duplique con el Hook
+        System.out.println("CASO 13: Evidencia delegada al Hook global");
     }
 }
