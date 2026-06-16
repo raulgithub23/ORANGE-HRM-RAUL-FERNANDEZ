@@ -21,6 +21,12 @@ import java.util.List;
 /**
  * PPT 3.2.1 - Casos 5 al 8: Pruebas Data-Driven con Excel.
  * Registro, búsqueda, edición y eliminación de empleados.
+ *
+ * Cambios respecto a versión anterior:
+ * - ExcelUtils se usa como instancia (no estático) para evitar estado compartido entre steps.
+ * - Thread.sleep eliminados: reemplazados por WebDriverWait con condiciones explícitas.
+ *   · Línea anterior 131: espera al listbox del autocompletado en lugar de dormir 1500ms fijo.
+ *   · Línea anterior 172: espera a que filas o mensaje "No Records Found" sean visibles en el DOM.
  */
 public class EmpleadosSteps {
 
@@ -42,6 +48,11 @@ public class EmpleadosSteps {
         return new WebDriverWait(driver(), Duration.ofSeconds(25));
     }
 
+    /**
+     * Espera activa hasta que el spinner de carga de OrangeHRM desaparezca.
+     * Se envuelve en try/catch porque si el spinner nunca aparece (respuesta muy rápida),
+     * WebDriverWait lanzaría TimeoutException innecesaria.
+     */
     private void esperarSinSpinner() {
         try {
             new WebDriverWait(driver(), Duration.ofSeconds(5))
@@ -50,7 +61,7 @@ public class EmpleadosSteps {
         } catch (Exception ignored) {}
     }
 
-    // ─── DADO compartido con EmpleadoSteps existente ──────────────────────────
+    // ─── DADO compartido ──────────────────────────────────────────────────────
 
     @Dado("el administrador está autenticado y accede al módulo PIM")
     public void admin_autenticado_pim() {
@@ -60,7 +71,6 @@ public class EmpleadosSteps {
         driver().findElement(By.name("password")).sendKeys("admin123");
         driver().findElement(By.cssSelector("button[type='submit']")).click();
         esperaLarga().until(ExpectedConditions.urlContains("/dashboard/index"));
-        // Navegar a PIM
         By menuPIM = By.xpath("//span[normalize-space()='PIM']");
         esperaLarga().until(ExpectedConditions.elementToBeClickable(menuPIM)).click();
         esperaLarga().until(ExpectedConditions.urlContains("/pim/viewEmployeeList"));
@@ -78,10 +88,11 @@ public class EmpleadosSteps {
 
     @Y("carga nombre y apellido desde la fila {int} del archivo de empleados")
     public void carga_datos_empleado_excel(int fila) throws IOException {
-        ExcelUtils.setExcelFileSheet(
+        // ExcelUtils como instancia: cada step crea su propia lectura sin pisar estado compartido
+        ExcelUtils excel = new ExcelUtils(
             "src/test/resources/testData/dataEmpleados.xlsx", "Empleados");
-        String nombre   = ExcelUtils.getCellData(fila, 1);
-        String apellido = ExcelUtils.getCellData(fila, 2);
+        String nombre   = excel.getCellData(fila, 1);
+        String apellido = excel.getCellData(fila, 2);
         System.out.println("CASO 5 - Fila " + fila + ": " + nombre + " " + apellido);
         WebElement inputNombre = espera().until(
             ExpectedConditions.visibilityOfElementLocated(By.name("firstName")));
@@ -112,80 +123,87 @@ public class EmpleadosSteps {
 
     @Cuando("busca con los filtros de la fila {int} del archivo de filtros")
     public void busca_con_filtros_excel(int fila) throws IOException {
-        ExcelUtils.setExcelFileSheet("src/test/resources/testData/dataFiltros.xlsx", "Filtros");
-        String nombre = ExcelUtils.getCellData(fila, 1);
-        String estado = ExcelUtils.getCellData(fila, 2); 
-        
+        ExcelUtils excel = new ExcelUtils(
+            "src/test/resources/testData/dataFiltros.xlsx", "Filtros");
+        String nombre = excel.getCellData(fila, 1);
+        String estado = excel.getCellData(fila, 2);
+
         System.out.println("CASO 6 - Fila " + fila + " - Filtro nombre: " + nombre + ", estado: " + estado);
-        
-        // 1. Ingresar Nombre con el locator robusto anclado al label
+
+        // 1. Ingresar nombre en el campo de autocompletado, anclado al label para mayor robustez
         By inputFiltro = By.xpath("//label[normalize-space()='Employee Name']/parent::div/following-sibling::div//input");
         WebElement campo = espera().until(ExpectedConditions.visibilityOfElementLocated(inputFiltro));
-        
-        // Borrado seguro para React
+
+        // Borrado seguro en campos React que no responden bien a .clear()
         campo.sendKeys(Keys.chord(Keys.CONTROL, "a"), Keys.DELETE);
         campo.sendKeys(nombre);
-        
+
+        // CORRECCIÓN: en lugar de Thread.sleep(1500), se espera explícitamente a que
+        // el listbox del autocompletado aparezca en el DOM antes de intentar hacer clic.
+        // Esto elimina la espera fija y hace el paso determinista.
+        By opcion = By.xpath("//div[@role='listbox']//span[contains(text(), '" + nombre + "')]");
         try {
-            // Pausa para que la API responda
-            Thread.sleep(1500); 
-            
-            // Selector mejorado: busca la sugerencia exacta con el nombre en el listbox
-            By opcion = By.xpath("//div[@role='listbox']//span[contains(text(), '" + nombre + "')]");
             WebElement sugerencia = espera().until(ExpectedConditions.elementToBeClickable(opcion));
             sugerencia.click();
         } catch (Exception e) {
-            System.out.println("⚠️ Autocompletado no encontró a: " + nombre + " (Asegúrate de haber corrido el CP-05 primero)");
+            System.out.println("⚠️ Autocompletado no encontró a: " + nombre +
+                " (Asegúrate de haber corrido el CP-05 primero)");
         }
-        
-        // 2. Seleccionar Estado apuntando al menú "Include"
+
+        // 2. Seleccionar estado (campo Include)
         if (estado != null && !estado.isEmpty()) {
-            By includeDropdown = By.xpath("//label[contains(normalize-space(),'Include')]/parent::div/following-sibling::div//div[contains(@class, 'oxd-select-text')]");
+            By includeDropdown = By.xpath(
+                "//label[contains(normalize-space(),'Include')]/parent::div/following-sibling::div//div[contains(@class, 'oxd-select-text')]");
             espera().until(ExpectedConditions.elementToBeClickable(includeDropdown)).click();
-            
-            // Traductor de Excel a opciones reales del sistema
-            String textoOpcionOrangeHRM = "";
+
+            // Mapeo de valores del Excel a las etiquetas reales del sistema OrangeHRM
+            String textoOpcionOrangeHRM;
             if (estado.equalsIgnoreCase("Active")) {
                 textoOpcionOrangeHRM = "Current Employees Only";
             } else if (estado.equalsIgnoreCase("Inactive")) {
                 textoOpcionOrangeHRM = "Past Employees Only";
             } else {
-                textoOpcionOrangeHRM = estado; 
+                textoOpcionOrangeHRM = estado;
             }
-            
-            By statusOption = By.xpath("//div[@role='listbox']//span[contains(text(), '" + textoOpcionOrangeHRM + "')]");
+
+            By statusOption = By.xpath(
+                "//div[@role='listbox']//span[contains(text(), '" + textoOpcionOrangeHRM + "')]");
             espera().until(ExpectedConditions.elementToBeClickable(statusOption)).click();
         }
 
         esperarSinSpinner();
         By btnBuscar = By.xpath("//button[normalize-space()='Search']");
         espera().until(ExpectedConditions.elementToBeClickable(btnBuscar)).click();
-        
-        // Espera a que aparezca el spinner de carga o el toast indicando que la búsqueda se procesó
-        try {
-            espera().until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".oxd-loading-spinner-container, .oxd-toast-container")));
-        } catch (Exception ignored) {}
-        
-        esperarSinSpinner();
-        
-        // Pausa técnica para permitir que React repinte el DOM de la tabla antes del assert
-        try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
-    }
 
-    @Entonces("los resultados coinciden con lo esperado en la fila {int}")
-    public void valida_resultados_excel(int fila) throws IOException {
-        ExcelUtils.setExcelFileSheet("src/test/resources/testData/dataFiltros.xlsx", "Filtros");
-        String esperado = ExcelUtils.getCellData(fila, 3);
-        
-        // Esperar que la tabla cargue
+        // Absorber el spinner que aparece durante la búsqueda (si existe)
+        try {
+            espera().until(ExpectedConditions.visibilityOfElementLocated(
+                By.cssSelector(".oxd-loading-spinner-container, .oxd-toast-container")));
+        } catch (Exception ignored) {}
+
+        esperarSinSpinner();
+
+        // CORRECCIÓN: en lugar de Thread.sleep(1500) para que React repinte la tabla,
+        // se espera explícitamente a que el DOM muestre filas de resultados o el mensaje
+        // de "No Records Found". Ambas condiciones indican que el renderizado terminó.
         By sinResultados = By.xpath("//span[normalize-space()='No Records Found']");
         By filasTabla    = By.cssSelector(".oxd-table-body .oxd-table-row");
-        
         new WebDriverWait(driver(), Duration.ofSeconds(10)).until(d ->
             !d.findElements(sinResultados).isEmpty() ||
             !d.findElements(filasTabla).isEmpty()
         );
+    }
 
+    @Entonces("los resultados coinciden con lo esperado en la fila {int}")
+    public void valida_resultados_excel(int fila) throws IOException {
+        ExcelUtils excel = new ExcelUtils(
+            "src/test/resources/testData/dataFiltros.xlsx", "Filtros");
+        String esperado = excel.getCellData(fila, 3);
+
+        By sinResultados = By.xpath("//span[normalize-space()='No Records Found']");
+        By filasTabla    = By.cssSelector(".oxd-table-body .oxd-table-row");
+
+        // La tabla ya está renderizada al llegar aquí (wait ya hecho en el paso anterior)
         if (esperado.contains("0")) {
             Assert.assertTrue("Se esperaban 0 resultados",
                 !driver().findElements(sinResultados).isEmpty());
@@ -200,9 +218,9 @@ public class EmpleadosSteps {
 
     @Cuando("busca al empleado por nombre de la fila {int} del archivo de edicion")
     public void busca_empleado_para_edicion(int fila) throws IOException {
-        ExcelUtils.setExcelFileSheet(
+        ExcelUtils excel = new ExcelUtils(
             "src/test/resources/testData/dataEdicion.xlsx", "Edicion");
-        String nombre = ExcelUtils.getCellData(fila, 1);
+        String nombre = excel.getCellData(fila, 1);
         System.out.println("CASO 7 - Fila " + fila + " - Empleado a editar: " + nombre);
         By inputFiltro = By.xpath(
             "//div[contains(@class,'oxd-autocomplete-wrapper')]//input");
@@ -219,13 +237,11 @@ public class EmpleadosSteps {
         By btnBuscar = By.xpath("//button[normalize-space()='Search']");
         espera().until(ExpectedConditions.elementToBeClickable(btnBuscar)).click();
         esperarSinSpinner();
-        // Click en el primer resultado para editar
-        By primerResultado = By.cssSelector(".oxd-table-body .oxd-table-row:first-child " +
-            ".oxd-icon.bi-pencil-fill");
+        By primerResultado = By.cssSelector(
+            ".oxd-table-body .oxd-table-row:first-child .oxd-icon.bi-pencil-fill");
         try {
             espera().until(ExpectedConditions.elementToBeClickable(primerResultado)).click();
         } catch (Exception e) {
-            // Intentar con el botón edit genérico
             By btnEdit = By.cssSelector(".oxd-table-cell-actions button:first-child");
             espera().until(ExpectedConditions.elementToBeClickable(btnEdit)).click();
         }
@@ -234,15 +250,13 @@ public class EmpleadosSteps {
 
     @Y("actualiza el cargo del empleado con los datos de la fila {int}")
     public void actualiza_cargo_empleado(int fila) throws IOException {
-        ExcelUtils.setExcelFileSheet(
+        ExcelUtils excel = new ExcelUtils(
             "src/test/resources/testData/dataEdicion.xlsx", "Edicion");
-        String nuevoCargo = ExcelUtils.getCellData(fila, 2);
+        String nuevoCargo = excel.getCellData(fila, 2);
         System.out.println("CASO 7 - Nuevo cargo: " + nuevoCargo);
-        // Buscar el campo Job Title si está disponible en la ficha
         try {
             By tabPersonal = By.xpath("//a[normalize-space()='Personal Details']");
             driver().findElement(tabPersonal);
-            // Estamos en la ficha de empleado - guardar datos básicos
             By btnSave = By.xpath("//button[normalize-space()='Save']");
             List<WebElement> botones = driver().findElements(btnSave);
             if (!botones.isEmpty()) {
@@ -255,7 +269,6 @@ public class EmpleadosSteps {
 
     @Entonces("los datos actualizados deben reflejarse en el perfil")
     public void datos_actualizados_en_perfil() {
-        // Verificar que seguimos en la ficha de empleado
         Assert.assertTrue("No está en la ficha del empleado",
             driver().getCurrentUrl().contains("/pim/"));
         System.out.println("CASO 7 OK: Datos verificados en perfil de empleado");
@@ -265,11 +278,10 @@ public class EmpleadosSteps {
 
     @Cuando("busca al empleado por nombre de la fila {int} del archivo de eliminacion")
     public void busca_empleado_para_eliminar(int fila) throws IOException {
-        ExcelUtils.setExcelFileSheet(
+        ExcelUtils excel = new ExcelUtils(
             "src/test/resources/testData/dataEliminacion.xlsx", "Eliminacion");
-        String nombre = ExcelUtils.getCellData(fila, 1);
+        String nombre = excel.getCellData(fila, 1);
         System.out.println("CASO 8 - Fila " + fila + " - Empleado a eliminar: " + nombre);
-        // Ir al listado PIM
         driver().get("https://opensource-demo.orangehrmlive.com" +
             "/web/index.php/pim/viewEmployeeList");
         esperarSinSpinner();
@@ -293,16 +305,13 @@ public class EmpleadosSteps {
     @Y("selecciona el checkbox y hace click en Delete")
     public void selecciona_checkbox_y_delete() {
         try {
-            // Seleccionar checkbox de la primera fila
             By checkbox = By.cssSelector(
                 ".oxd-table-body .oxd-table-row:first-child .oxd-checkbox-wrapper input");
             espera().until(ExpectedConditions.elementToBeClickable(checkbox)).click();
-            // Click en botón Delete Selected
             By btnDeleteSelected = By.xpath(
                 "//button[contains(@class,'oxd-button--label-danger')]");
             espera().until(ExpectedConditions.elementToBeClickable(btnDeleteSelected)).click();
         } catch (Exception e) {
-            // Si no hay resultados para eliminar, el caso pasa igual (empleado ya eliminado)
             System.out.println("CASO 8: No se encontró empleado para eliminar (puede ya no existir)");
         }
     }
@@ -310,8 +319,7 @@ public class EmpleadosSteps {
     @Y("confirma la eliminación en el diálogo")
     public void confirma_eliminacion_dialogo() {
         try {
-            By btnConfirmar = By.xpath(
-                "//button[normalize-space()='Yes, Delete']");
+            By btnConfirmar = By.xpath("//button[normalize-space()='Yes, Delete']");
             espera().until(ExpectedConditions.elementToBeClickable(btnConfirmar)).click();
             esperarSinSpinner();
         } catch (Exception e) {
@@ -327,7 +335,6 @@ public class EmpleadosSteps {
         new WebDriverWait(driver(), Duration.ofSeconds(10)).until(d ->
             !d.findElements(sinResultados).isEmpty() ||
             !d.findElements(filasTabla).isEmpty());
-        // Verificar que no hay resultados O que la eliminación fue exitosa
         boolean sinFilas = !driver().findElements(sinResultados).isEmpty() ||
                            driver().findElements(filasTabla).isEmpty();
         Assert.assertTrue("El empleado aún aparece en la búsqueda", sinFilas ||
