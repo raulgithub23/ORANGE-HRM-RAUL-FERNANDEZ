@@ -1,6 +1,5 @@
 package stepDefinitions;
 
-import utilidades.Utility;
 import io.cucumber.java.es.Cuando;
 import io.cucumber.java.es.Dado;
 import io.cucumber.java.es.Entonces;
@@ -16,6 +15,7 @@ import java.time.Duration;
 
 /**
  * PPT 3.1.1 - Casos 1 al 4: Login, Login Fallido, Logout y Captura en Fallo.
+ * (Capturas delegadas al Hook global)
  */
 public class LoginSteps {
 
@@ -57,10 +57,7 @@ public class LoginSteps {
         espera().until(ExpectedConditions.urlContains("/dashboard/index"));
         Assert.assertTrue("No se cargó el Dashboard",
             driver().getTitle().contains("OrangeHRM"));
-        // PPT 3.1.1 - Screenshot con timestamp
-        Utility.captureScreenShot(driver(),
-            "evidencias/CP01_LoginExitoso_" + Utility.GetTimeStampValue() + ".png");
-        System.out.println("CASO 1 OK: Login exitoso, screenshot generado");
+        System.out.println("CASO 1 OK: Login exitoso");
     }
 
     @Entonces("se muestra el mensaje {string}")
@@ -70,10 +67,7 @@ public class LoginSteps {
             .until(ExpectedConditions.visibilityOfElementLocated(alertaError))
             .getText();
         Assert.assertEquals("Mensaje de error incorrecto", mensajeEsperado, mensajeReal);
-        // PPT 3.1.1 - Screenshot del estado de error
-        Utility.captureScreenShot(driver(),
-            "evidencias/CP02_LoginFallido_" + Utility.GetTimeStampValue() + ".png");
-        System.out.println("CASO 2 OK: Screenshot de error generado");
+        System.out.println("CASO 2 OK: Mensaje de error verificado");
     }
 
     // ─── CASO 3: Logout ───────────────────────────────────────────────────────
@@ -92,9 +86,6 @@ public class LoginSteps {
     public void hace_click_en_menu_usuario() throws IOException {
         By menuUsuario = By.cssSelector(".oxd-userdropdown-tab");
         espera().until(ExpectedConditions.elementToBeClickable(menuUsuario)).click();
-        // Screenshot del menú abierto
-        Utility.captureScreenShot(driver(),
-            "evidencias/CP03_MenuAbierto_" + Utility.GetTimeStampValue() + ".png");
     }
 
     @Y("selecciona la opción Logout")
@@ -108,10 +99,7 @@ public class LoginSteps {
         espera().until(ExpectedConditions.urlContains("/auth/login"));
         Assert.assertTrue("No redirigió al login",
             driver().getCurrentUrl().contains("login"));
-        // PPT 3.1.1 - Screenshot de logout exitoso
-        Utility.captureScreenShot(driver(),
-            "evidencias/CP03_LogoutExitoso_" + Utility.GetTimeStampValue() + ".png");
-        System.out.println("CASO 3 OK: Logout exitoso, screenshots generados");
+        System.out.println("CASO 3 OK: Logout exitoso");
     }
 
     // ─── CASO 4: Verificación que activa el hook @After ───────────────────────
@@ -126,12 +114,9 @@ public class LoginSteps {
     public void el_titulo_debe_contener(String tituloEsperado) throws IOException {
         String tituloReal = driver().getTitle();
         // Este assert pasa normalmente (OrangeHRM está en el título)
-        // El hook @After de Hooks.java captura screenshot si FALLA
         Assert.assertTrue(
             "Título incorrecto. Esperado contener: '" + tituloEsperado + "', Real: '" + tituloReal + "'",
             tituloReal.contains(tituloEsperado));
-        Utility.captureScreenShot(driver(),
-            "evidencias/CP04_TituloVerificado_" + Utility.GetTimeStampValue() + ".png");
-        System.out.println("CASO 4 OK: Título verificado. Hook @After activo para fallos.");
+        System.out.println("CASO 4 OK: Título verificado.");
     }
 }

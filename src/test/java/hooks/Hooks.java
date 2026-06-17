@@ -5,12 +5,15 @@ import io.cucumber.java.After;
 import io.cucumber.java.Scenario;
 import stepDefinitions.Configuracion;
 
+import org.openqa.selenium.OutputType;
+import org.openqa.selenium.TakesScreenshot;
+
 import java.io.IOException;
 
 /**
- * PPT 3.1.1 - Caso 4: Hook @After que captura screenshot automáticamente
- * cuando cualquier escenario falla.
- * El nombre del archivo incluye el nombre del escenario y timestamp.
+ * Hook @After que captura screenshot al finalizar cada escenario (PASS o FAIL).
+ * Guarda la imagen en disco bajo evidencias/ y la adjunta al reporte HTML de Cucumber.
+ * El nombre incluye: estado (PASS/FAIL), nombre del escenario y timestamp.
  */
 public class Hooks {
 
@@ -22,12 +25,23 @@ public class Hooks {
 
     @After(order = 1)
     public void afterScenario(Scenario scenario) throws IOException {
-        if (scenario.isFailed() && configuracion.obtenerDriver() != null) {
-            // Limpiar caracteres especiales del nombre del escenario
-            String nombre = scenario.getName().replaceAll("[^a-zA-Z0-9_\\-]", "_");
-            String ruta = "evidencias/FALLO_" + nombre + "_" + Utility.GetTimeStampValue() + ".png";
-            Utility.captureScreenShot(configuracion.obtenerDriver(), ruta);
-            System.out.println("CP-04 Aplicado: Screenshot de fallo guardado -> " + ruta);
-        }
+        if (configuracion.obtenerDriver() == null) return;
+
+        String estado = scenario.isFailed() ? "FAIL" : "PASS";
+        String nombre = scenario.getName().replaceAll("[^a-zA-Z0-9_\\-]", "_");
+        String timestamp = Utility.GetTimeStampValue();
+        String nombreArchivo = estado + "_" + nombre + "_" + timestamp;
+
+        // Capturar una sola vez y reutilizar para disco y reporte
+        byte[] screenshot = ((TakesScreenshot) configuracion.obtenerDriver())
+                .getScreenshotAs(OutputType.BYTES);
+
+        // 1. Guardar en disco
+        Utility.captureScreenShot(configuracion.obtenerDriver(), "evidencias/" + nombreArchivo + ".png");
+
+        // 2. Adjuntar al reporte HTML de Cucumber
+        scenario.attach(screenshot, "image/png", nombreArchivo);
+
+        System.out.println("Evidencia guardada (" + estado + ") -> evidencias/" + nombreArchivo + ".png");
     }
 }
