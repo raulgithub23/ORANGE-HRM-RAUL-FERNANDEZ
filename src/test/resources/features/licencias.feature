@@ -7,6 +7,8 @@ Característica: Solicitud de Licencias en OrangeHRM
   Para validar el módulo Leave de forma parametrizada
 
   # CASO 14 - Asignación de licencias con datos externos
+  # Requiere que entitlements.feature se haya ejecutado antes (orden alfabético)
+  # para que existan créditos disponibles en los 3 tipos de licencia.
   @caso14 @regression
   Esquema del escenario: CP-14 Registrar licencia con datos desde Excel
     Dado el usuario está autenticado en el sistema

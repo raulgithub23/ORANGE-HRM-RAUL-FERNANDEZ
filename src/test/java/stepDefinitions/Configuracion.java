@@ -10,10 +10,6 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Gestiona el ciclo de vida del WebDriver con PicoContainer.
- * El driver NO es estático: garantiza aislamiento entre escenarios.
- */
 public class Configuracion {
 
     private WebDriver driver;

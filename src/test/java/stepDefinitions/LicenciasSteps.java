@@ -1,7 +1,7 @@
 package stepDefinitions;
 
 import utilidades.ExcelUtils;
-import io.cucumber.java.Before;
+import io.cucumber.java.After;
 import io.cucumber.java.es.Cuando;
 import io.cucumber.java.es.Entonces;
 import io.cucumber.java.es.Y;
@@ -15,21 +15,26 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.List;
 
+/**
+ * PPT 3.2.1 + 3.3.1 - Caso 14: Registrar licencia con datos desde Excel.
+ *
+ * Responsabilidad única: aplicar la solicitud de licencia (CP-14) y, al
+ * terminar cada fila del Esquema del escenario, cancelarla en Leave List
+ * para que el siguiente run de la suite no falle por solicitudes duplicadas.
+ *
+ * La asignación/recarga de créditos (Entitlements) vive aparte en
+ * EntitlementsSteps.java + entitlements.feature, que corre antes por orden
+ * alfabético de archivos .feature.
+ */
 public class LicenciasSteps {
 
     private final Configuracion configuracion;
-    private static final List<String> TIPOS_LICENCIA = Arrays.asList(
-        "US - Vacation",
-        "US - Personal",
-        "US - Bereavement"
-    );
-
-    private static final String ENTITLEMENT_CANTIDAD = "3000";
     private static final String BASE_URL =
         "https://opensource-demo.orangehrmlive.com/web/index.php";
+
+    // Guarda el tipo de licencia registrado en el escenario actual para poder cancelarlo al final
+    private String tipoLicenciaRegistrado = null;
 
     public LicenciasSteps(Configuracion configuracion) {
         this.configuracion = configuracion;
@@ -59,236 +64,151 @@ public class LicenciasSteps {
         } catch (Exception ignored) {}
     }
 
-    @Before(value = "@licencias")
-    public void asignarEntitlements() {
-        hacerLogin();
-
-        String nombreUsuario = leerNombreUsuarioDesdeHeader();
-        System.out.println("PRECONDICION CP-14: Usuario activo -> " + nombreUsuario);
-
-        for (String tipoLicencia : TIPOS_LICENCIA) {
-            asignarEntitlementIndividual(nombreUsuario, tipoLicencia);
-        }
-
-        System.out.println("PRECONDICION CP-14: Entitlements asignados para los 3 tipos.");
-        hacerLogout();
-    }
-
-    private void hacerLogin() {
-        driver().get(BASE_URL + "/auth/login");
-
-        boolean yaLogueado = false;
+    // -------------------------------------------------------------------------
+    // POSTCONDICION: cancela la solicitud recién registrada en Leave List para
+    // que el siguiente run de la suite no falle por balance/registro duplicado.
+    // order=1: corre ANTES que Configuracion.finalizar() (order=2), que cierra
+    // el driver; y se coordina con Hooks.afterScenario (order=1 también, pero
+    // en clase distinta) sin pisarse porque ninguno depende del otro.
+    // -------------------------------------------------------------------------
+    @After(value = "@caso14", order = 1)
+    public void cancelarSolicitudRegistrada() {
+        System.out.println("POSTCONDICION CP-14: Iniciando limpieza de solicitudes pendientes.");
         try {
-            new WebDriverWait(driver(), Duration.ofSeconds(5))
-                .until(ExpectedConditions.urlContains("/dashboard"));
-            yaLogueado = true;
-            System.out.println("PRECONDICION CP-14: Sesión ya activa, se omite login");
-        } catch (Exception ignored) {}
+            // Esperar que el backend registre la solicitud antes de navegar
+            pausa(2000);
+            driver().get(BASE_URL + "/leave/viewLeaveList");
 
-        if (!yaLogueado) {
-            try {
-                espera().until(ExpectedConditions.visibilityOfElementLocated(
-                    By.name("username"))).sendKeys("Admin");
-                driver().findElement(By.name("password")).sendKeys("admin123");
-                driver().findElement(By.cssSelector("button[type='submit']")).click();
-                esperaLarga().until(ExpectedConditions.urlContains("/dashboard"));
-                System.out.println("PRECONDICION CP-14: Login exitoso");
-            } catch (Exception e) {
-                System.out.println("PRECONDICION CP-14: Falló el login -> " + e.getMessage());
-            }
-        }
-    }
-
-    private String leerNombreUsuarioDesdeHeader() {
-        try {
-            String nombre = espera()
-                .until(ExpectedConditions.visibilityOfElementLocated(
-                    By.cssSelector(".oxd-userdropdown-name")))
-                .getText().trim();
-            if (!nombre.isEmpty()) {
-                System.out.println("PRECONDICION CP-14: Nombre leído del header -> " + nombre);
-                return nombre;
-            }
-        } catch (Exception e) {
-            System.out.println("PRECONDICION CP-14: No se pudo leer nombre del header");
-        }
-        return "Admin";
-    }
-
-    private void hacerLogout() {
-        try {
-            espera().until(ExpectedConditions.elementToBeClickable(
-                By.cssSelector(".oxd-userdropdown-tab"))).click();
-
-            espera().until(ExpectedConditions.elementToBeClickable(
-                By.xpath("//a[normalize-space()='Logout']"))).click();
-
-            espera().until(ExpectedConditions.visibilityOfElementLocated(
-                By.name("username")));
-            System.out.println("PRECONDICION CP-14: Logout exitoso");
-        } catch (Exception e) {
-            System.out.println("PRECONDICION CP-14: Logout falló, navegando a /auth/logout");
-            driver().get(BASE_URL + "/auth/logout");
-            try {
-                espera().until(ExpectedConditions.visibilityOfElementLocated(
-                    By.name("username")));
-            } catch (Exception ignored) {}
-        }
-    }
-
-    private void asignarEntitlementIndividual(String nombreUsuario, String tipoLicencia) {
-        try {
-            driver().get(BASE_URL + "/leave/addLeaveEntitlement");
-            esperarSinSpinner();
-
-            seleccionarIndividualEmployee();
-            escribirNombreYSeleccionarSugerencia(nombreUsuario, tipoLicencia);
-            seleccionarLeaveType(tipoLicencia);
-            ingresarCantidadEntitlement();
-            guardarYConfirmar(tipoLicencia);
-
-        } catch (Exception e) {
-            System.out.println("PRECONDICION CP-14: Falló asignando '"
-                + tipoLicencia + "' -> " + e.getMessage());
-        }
-    }
-
-    private void seleccionarIndividualEmployee() {
-        try {
-            WebElement radio = espera().until(ExpectedConditions.presenceOfElementLocated(
-                By.xpath("//label[normalize-space()='Individual Employee']" +
-                         "/preceding-sibling::input[@type='radio']")));
-            if (!radio.isSelected()) {
-                radio.click();
-                System.out.println("PRECONDICION CP-14: Radio 'Individual Employee' seleccionado");
-            }
-        } catch (Exception e) {
-            System.out.println("PRECONDICION CP-14: Radio Individual no encontrado, continuando");
-        }
-    }
-
-    private void escribirNombreYSeleccionarSugerencia(String nombreUsuario, String tipoLicencia) {
-        WebElement campoNombre = espera().until(
-            ExpectedConditions.elementToBeClickable(
-                By.cssSelector(".oxd-form .oxd-autocomplete-wrapper input")));
-        campoNombre.click();
-        campoNombre.sendKeys(Keys.chord(Keys.CONTROL, "a"), Keys.DELETE);
-        pausa(300);
-        String[] palabras = nombreUsuario.split(" ");
-        String textoBusqueda = palabras.length >= 2
-            ? palabras[0] + " " + palabras[1]
-            : nombreUsuario;
-        System.out.println("PRECONDICION CP-14: Escribiendo nombre -> " + textoBusqueda);
-        for (char c : textoBusqueda.toCharArray()) {
-            campoNombre.sendKeys(String.valueOf(c));
-            pausa(200);
-        }
-        pausa(2000);
-        boolean clicExitoso = intentarClicEnSugerencia(campoNombre, textoBusqueda);
-        if (!clicExitoso) {
-            System.out.println("PRECONDICION CP-14: Todos los intentos fallaron para: "
-                + tipoLicencia);
-        }
-        pausa(800);
-        List<WebElement> invalidos = driver().findElements(
-            By.xpath("//span[normalize-space()='Invalid']"));
-        if (!invalidos.isEmpty()) {
-            System.out.println("PRECONDICION CP-14: ADVERTENCIA - Employee Name inválido para: "
-                + tipoLicencia);
-        }
-    }
-
-    private boolean intentarClicEnSugerencia(WebElement campoNombre, String textoBusqueda) {
-        try {
-            WebElement opcion = new WebDriverWait(driver(), Duration.ofSeconds(10))
+            // PASO 1: Esperar que la página cargue y ejecutar Search
+            // El botón Search está dentro del formulario de filtros
+            WebElement btnSearch = new WebDriverWait(driver(), Duration.ofSeconds(20))
                 .until(ExpectedConditions.elementToBeClickable(
-                    By.cssSelector(".oxd-autocomplete-dropdown " +
-                                   ".oxd-autocomplete-option:first-child")));
-            ((JavascriptExecutor) driver()).executeScript(
-                "arguments[0].scrollIntoView({block:'center'});", opcion);
-            pausa(200);
-            opcion.click();
-            System.out.println("PRECONDICION CP-14: Clic en sugerencia OK (selector 1) -> "
-                + textoBusqueda);
-            return true;
-        } catch (Exception e1) {
-            System.out.println("PRECONDICION CP-14: Selector 1 falló, probando selector 2");
-        }
-        try {
-            WebElement opcion = new WebDriverWait(driver(), Duration.ofSeconds(5))
-                .until(ExpectedConditions.elementToBeClickable(
-                    By.cssSelector("[role='option']:first-child")));
-            ((JavascriptExecutor) driver()).executeScript(
-                "arguments[0].scrollIntoView({block:'center'});", opcion);
-            pausa(200);
-            opcion.click();
-            System.out.println("PRECONDICION CP-14: Clic en sugerencia OK (selector 2) -> "
-                + textoBusqueda);
-            return true;
-        } catch (Exception e2) {
-            System.out.println("PRECONDICION CP-14: Selector 2 falló, usando teclado");
-        }
-        try {
-            campoNombre.sendKeys(Keys.ARROW_DOWN);
-            pausa(400);
-            campoNombre.sendKeys(Keys.ENTER);
-            System.out.println("PRECONDICION CP-14: Selección por teclado OK -> "
-                + textoBusqueda);
-            return true;
-        } catch (Exception e3) {
-            System.out.println("PRECONDICION CP-14: Fallback de teclado falló -> "
-                + e3.getMessage());
-        }
+                    By.xpath("//button[@type='submit' and normalize-space()='Search']")));
+            btnSearch.click();
+            System.out.println("POSTCONDICION CP-14: PASO 1 OK - Search ejecutado.");
 
-        return false;
-    }
+            // Esperar que la tabla termine de cargar los resultados
+            new WebDriverWait(driver(), Duration.ofSeconds(20)).until(d ->
+                !d.findElements(By.xpath(
+                    "//div[contains(@class,'oxd-table-body')]" +
+                    "//div[contains(@class,'oxd-table-row')]")).isEmpty()
+                || !d.findElements(By.xpath(
+                    "//*[contains(text(),'No Records Found')]")).isEmpty()
+            );
 
-    private void seleccionarLeaveType(String tipoLicencia) {
-        By dropdownTipo = By.xpath(
-            "//label[normalize-space()='Leave Type']/parent::div" +
-            "/following-sibling::div//div[contains(@class,'oxd-select-text')]");
-        espera().until(ExpectedConditions.elementToBeClickable(dropdownTipo)).click();
-        esperarSinSpinner();
+            int cancelados = 0;
+            while (cancelados < 10) {
 
-        By opcionTipo = By.xpath(
-            "//div[@role='listbox']//span[normalize-space()='" + tipoLicencia + "']");
-        espera().until(ExpectedConditions.elementToBeClickable(opcionTipo)).click();
-        esperarSinSpinner();
-        System.out.println("PRECONDICION CP-14: Leave Type seleccionado -> " + tipoLicencia);
-    }
+                // Verificar cuántas filas hay en el body de la tabla
+                java.util.List<WebElement> filas = driver().findElements(
+                    By.xpath("//div[contains(@class,'oxd-table-body')]" +
+                             "//div[contains(@class,'oxd-table-row')]"));
 
-    private void ingresarCantidadEntitlement() {
-        WebElement campoEntitlement = espera().until(
-            ExpectedConditions.visibilityOfElementLocated(By.xpath(
-                "//label[normalize-space()='Entitlement']/parent::div" +
-                "/following-sibling::div//input")));
-        campoEntitlement.click();
-        campoEntitlement.sendKeys(Keys.chord(Keys.CONTROL, "a"), Keys.DELETE);
-        campoEntitlement.sendKeys(ENTITLEMENT_CANTIDAD);
-        System.out.println("PRECONDICION CP-14: Entitlement ingresado -> " + ENTITLEMENT_CANTIDAD);
-    }
+                if (filas.isEmpty()) {
+                    System.out.println("POSTCONDICION CP-14: Tabla limpia. Total cancelados: " + cancelados);
+                    break;
+                }
+                System.out.println("POSTCONDICION CP-14: Filas en tabla: " + filas.size());
 
-    private void guardarYConfirmar(String tipoLicencia) {
-        espera().until(ExpectedConditions.elementToBeClickable(
-            By.xpath("//button[normalize-space()='Save']"))).click();
-        esperarSinSpinner();
-        try {
-            new WebDriverWait(driver(), Duration.ofSeconds(6))
-                .until(ExpectedConditions.elementToBeClickable(
-                    By.xpath("//button[normalize-space()='Confirm']"))).click();
-            System.out.println("PRECONDICION CP-14: Modal Confirm presionado -> " + tipoLicencia);
-        } catch (Exception eModal) {
-            System.out.println("PRECONDICION CP-14: Sin modal de confirmación -> " + tipoLicencia);
-        }
-        try {
-            espera().until(ExpectedConditions.visibilityOfElementLocated(
-                By.cssSelector(".oxd-toast--success")));
-            System.out.println("PRECONDICION CP-14: Entitlement guardado OK -> " + tipoLicencia);
+                // PASO 2: Hacer scroll a la primera fila y marcar su checkbox
+                // El checkbox de cada fila está en la primera celda (oxd-table-cell)
+                WebElement primeraFila = filas.get(0);
+                ((JavascriptExecutor) driver()).executeScript(
+                    "arguments[0].scrollIntoView({block:'center'});", primeraFila);
+                pausa(400);
+
+                WebElement checkbox = primeraFila.findElement(
+                    By.xpath(".//input[@type='checkbox']"));
+                // OrangeHRM superpone un <i class="oxd-icon ... checkbox-input-icon">
+                // encima del <input type="checkbox"> real para dibujar el check visual.
+                // Eso intercepta el clic nativo de Selenium (ElementClickInterceptedException)
+                // porque el punto central del checkbox queda "tapado" por ese ícono.
+                // Solución: disparar el clic vía JavaScript, que ignora qué elemento
+                // está visualmente encima en ese punto y actúa directo sobre el input.
+                ((JavascriptExecutor) driver()).executeScript(
+                    "arguments[0].click();", checkbox);
+                System.out.println("POSTCONDICION CP-14: PASO 2 OK - Checkbox de fila 1 marcado.");
+
+                // PASO 3: Clic en el botón "Cancel" que aparece junto a "(1) Record
+                // Selected" tras marcar el checkbox. NOTA: antes esperábamos
+                // explícitamente la visibilidad del texto "Record Selected" con
+                // contains(text(),...), pero ese XPath puede matchear más de un nodo
+                // en el DOM (p.ej. un duplicado oculto de accesibilidad/responsive),
+                // y Selenium podía quedarse esperando la visibilidad del nodo
+                // equivocado aunque el visible ya estuviera en pantalla (timeout de
+                // 10s real en producción). Por eso ahora vamos directo a esperar que
+                // el botón Cancel esté presente, y lo clickeamos vía JavaScript para
+                // evitar el mismo problema de "element click intercepted" que tuvimos
+                // con el checkbox (otro elemento decorativo tapando el punto de clic).
+                boolean cancelClicked = false;
+                try {
+                    WebElement btnCancelRecord = new WebDriverWait(driver(), Duration.ofSeconds(10))
+                        .until(ExpectedConditions.presenceOfElementLocated(
+                            By.xpath("//button[normalize-space()='Cancel']")));
+                    ((JavascriptExecutor) driver()).executeScript(
+                        "arguments[0].click();", btnCancelRecord);
+                    cancelClicked = true;
+                    System.out.println("POSTCONDICION CP-14: PASO 3 OK - Cancel clickeado (JS).");
+                } catch (Exception e1) {
+                    System.out.println("POSTCONDICION CP-14: Intento principal fallido: " + e1.getMessage());
+                }
+
+                // Fallback: JS directo recorriendo todos los <button> visibles del
+                // documento, por si el locator anterior no encontró nada (p.ej. el
+                // texto del botón viene con espacios/whitespace distinto).
+                if (!cancelClicked) {
+                    try {
+                        ((JavascriptExecutor) driver()).executeScript(
+                            "var btns = document.querySelectorAll('button');" +
+                            "for(var i=0; i<btns.length; i++){" +
+                            "  if(btns[i].innerText.trim()==='Cancel' && btns[i].offsetParent!==null){" +
+                            "    btns[i].click(); break;" +
+                            "  }" +
+                            "}");
+                        cancelClicked = true;
+                        System.out.println("POSTCONDICION CP-14: PASO 3 OK (fallback JS) - Cancel clickeado.");
+                    } catch (Exception e3) {
+                        System.out.println("POSTCONDICION CP-14: Fallback JS fallido: " + e3.getMessage());
+                    }
+                }
+
+                if (!cancelClicked) {
+                    System.out.println("POSTCONDICION CP-14: PASO 3 FALLIDO - No se pudo hacer clic en Cancel.");
+                    break;
+                }
+                pausa(600);
+
+                // PASO 4: Esperar y confirmar el modal "Cancel Leave"
+                WebElement btnYesConfirm = new WebDriverWait(driver(), Duration.ofSeconds(10))
+                    .until(ExpectedConditions.elementToBeClickable(
+                        By.xpath("//button[normalize-space()='Yes, Confirm']")));
+                System.out.println("POSTCONDICION CP-14: PASO 4 - Modal visible, confirmando.");
+                btnYesConfirm.click();
+
+                // PASO 5: Esperar toast de éxito
+                try {
+                    new WebDriverWait(driver(), Duration.ofSeconds(10))
+                        .until(ExpectedConditions.visibilityOfElementLocated(
+                            By.cssSelector(".oxd-toast")));
+                    cancelados++;
+                    System.out.println("POSTCONDICION CP-14: PASO 5 OK - Registro #" + cancelados + " cancelado.");
+                    new WebDriverWait(driver(), Duration.ofSeconds(8))
+                        .until(ExpectedConditions.invisibilityOfElementLocated(
+                            By.cssSelector(".oxd-toast")));
+                } catch (Exception toastEx) {
+                    cancelados++;
+                    System.out.println("POSTCONDICION CP-14: PASO 5 - Toast no detectado para registro #"
+                        + cancelados + ", continuando.");
+                    pausa(2000);
+                }
+                esperarSinSpinner();
+            }
+
         } catch (Exception e) {
-            System.out.println("PRECONDICION CP-14: Sin toast de éxito para "
-                + tipoLicencia + " (continuando)");
+            System.out.println("POSTCONDICION CP-14: ERROR -> " + e.getMessage());
+        } finally {
+            tipoLicenciaRegistrado = null;
         }
-        esperarSinSpinner();
     }
 
     @Cuando("navega al módulo de solicitud de licencias")
@@ -305,6 +225,8 @@ public class LicenciasSteps {
         ExcelUtils excel = new ExcelUtils(
             "src/test/resources/testData/dataLicencias.xlsx", "Licencias");
         String tipo = excel.getCellData(fila, 1);
+        // Guardar el tipo para poder cancelarlo en @After
+        tipoLicenciaRegistrado = tipo;
         System.out.println("CASO 14 - Fila " + fila + " - Tipo: " + tipo);
 
         esperarSinSpinner();
@@ -328,6 +250,11 @@ public class LicenciasSteps {
                     "arguments[0].scrollIntoView({block:'center'});", opcion);
                 espera().until(ExpectedConditions.elementToBeClickable(opcion)).click();
                 espera().until(ExpectedConditions.invisibilityOfElementLocated(dropdown));
+
+                // Esperar a que el Leave Balance termine de cargar antes de continuar.
+                // OrangeHRM hace una llamada AJAX al seleccionar el tipo; si no se
+                // espera, el siguiente step empieza antes de que el balance esté listo.
+                esperarLeaveBalanceCargado();
                 return;
             } catch (Exception e) {
                 if (intento == 2) throw new RuntimeException(
@@ -356,6 +283,37 @@ public class LicenciasSteps {
             By.xpath("//label[normalize-space()='To Date']/following::input[1]"), hasta);
         driver().findElement(By.cssSelector(".oxd-form")).click();
         esperarSinSpinner();
+    }
+
+    /**
+     * Espera a que el Leave Balance termine de cargarse después de seleccionar
+     * un tipo de licencia. OrangeHRM hace una llamada AJAX que actualiza el
+     * texto del balance; espera hasta que el elemento deje de mostrar el
+     * estado de loading (spinner o texto vacío) y muestre un valor concreto.
+     */
+    private void esperarLeaveBalanceCargado() {
+        try {
+            // 1. Esperar que el spinner de la página desaparezca
+            esperarSinSpinner();
+
+            // 2. Esperar hasta que el contenedor del Leave Balance tenga texto visible
+            //    (cualquier texto: "3000.00 Day(s)", "0.00 Day(s)", "Balance not sufficient")
+            WebDriverWait espera10s = new WebDriverWait(driver(), Duration.ofSeconds(10));
+            espera10s.until(driver -> {
+                try {
+                    WebElement balanceArea = driver.findElement(
+                        By.cssSelector(".oxd-form-row .oxd-input-group"));
+                    String texto = balanceArea.getText().trim();
+                    return !texto.isEmpty() && !texto.equals("Leave Balance");
+                } catch (Exception ex) {
+                    return false;
+                }
+            });
+            System.out.println("CASO 14: Leave Balance cargado correctamente.");
+        } catch (Exception e) {
+            System.out.println("CASO 14: Timeout esperando Leave Balance, usando pausa de 2s.");
+            pausa(2000);
+        }
     }
 
     private void escribirFecha(By locator, String fecha) {
