@@ -197,5 +197,5 @@ PASS_CP-14_Registrar_licencia_con_datos_desde_Excel_YYYYMMDD_HHMMSS.png
 
 **GitHub:** [https://github.com/raulgithub23/ORANGE-HRM-RAUL-FERNANDEZ](https://github.com/raulgithub23/ORANGE-HRM-RAUL-FERNANDEZ)  
 **Rama principal:** `main`  
-**Commits:** 7  
+**Commits:** 9  
 **Último commit:** `85b2b28` — fix: corregir capturas blancas, refactorizar entitlements y actualizar dataLicencias
