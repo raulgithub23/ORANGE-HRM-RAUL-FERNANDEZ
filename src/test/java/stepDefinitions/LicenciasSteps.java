@@ -335,14 +335,34 @@ public class LicenciasSteps {
 
     @Entonces("la solicitud debe quedar registrada en el sistema")
     public void solicitud_registrada() {
+        // 1. Verificar que NO hay mensajes de error de validación en pantalla
+        java.util.List<WebElement> errores = driver().findElements(
+            By.cssSelector(".oxd-input-field-error-message"));
+        if (!errores.isEmpty()) {
+            String mensajeError = errores.stream()
+                .map(WebElement::getText)
+                .collect(java.util.stream.Collectors.joining(", "));
+            Assert.fail("Formulario rechazado con error: " + mensajeError);
+        }
+
+        // 2. Verificar que NO hay alerta de tipo "Failed to Submit"
+        java.util.List<WebElement> alertas = driver().findElements(
+            By.cssSelector(".oxd-alert-content-text"));
+        for (WebElement alerta : alertas) {
+            String textoAlerta = alerta.getText();
+            if (textoAlerta.contains("Failed") || textoAlerta.contains("No Working Days")) {
+                Assert.fail("OrangeHRM rechazó la solicitud: " + textoAlerta);
+            }
+        }
+
+        // 3. Esperar el toast de éxito (confirmación real del sistema)
         try {
-            esperaLarga().until(ExpectedConditions.visibilityOfAllElementsLocatedBy(
-                By.cssSelector(".oxd-toast-content-text")));
-            System.out.println("CASO 14 OK: Licencia registrada - toast visible");
+            esperaLarga().until(ExpectedConditions.visibilityOfElementLocated(
+                By.cssSelector(".oxd-toast--success")));
+            System.out.println("CASO 14 OK: Licencia registrada - toast de éxito visible");
         } catch (Exception e) {
-            Assert.assertTrue("La solicitud no fue registrada",
-                driver().getCurrentUrl().contains("/leave/"));
-            System.out.println("CASO 14 OK: Licencia registrada - URL confirmada");
+            Assert.fail("No se recibió confirmación de registro (toast de éxito ausente). " +
+                "URL actual: " + driver().getCurrentUrl());
         }
     }
 }
