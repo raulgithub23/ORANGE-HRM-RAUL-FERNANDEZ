@@ -35,4 +35,4 @@ Característica: Autenticación en OrangeHRM
   Escenario: CP-04 Captura automática ante fallo de assert
     Dado el usuario está autenticado en OrangeHRM
     Cuando navega al módulo About
-    Entonces el título de la página debe contener "OrangeHRM"
+    Entonces el título de la página debe contener "ModuloAbout"
