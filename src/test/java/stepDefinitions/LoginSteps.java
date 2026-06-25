@@ -35,7 +35,8 @@ public class LoginSteps {
         return new DashboardPage(driver());
     }
 
-    // ─── CASO 1 y 2: Login exitoso y fallido ──────────────────────────────────
+    // ─── CASO 1 y 2: login válido redirige al Dashboard; login inválido
+    // muestra el mensaje de error de OrangeHRM sin redirigir ────────────────
 
     @Dado("el usuario navega a {string}")
     public void el_usuario_navega_a(String url) {
@@ -66,7 +67,8 @@ public class LoginSteps {
         System.out.println("CASO 2 OK: Mensaje de error verificado");
     }
 
-    // ─── CASO 3: Logout ───────────────────────────────────────────────────────
+    // ─── CASO 3: tras autenticarse, se cierra sesión desde el menú de
+    // usuario y se valida que la URL regrese a la pantalla de login ────────
 
     @Dado("el usuario está autenticado en OrangeHRM")
     public void el_usuario_esta_autenticado() {
@@ -91,7 +93,11 @@ public class LoginSteps {
         System.out.println("CASO 3 OK: Logout exitoso");
     }
 
-    // ─── CASO 4: Verificación que activa el hook @After ───────────────────────
+    // ─── CASO 4: este escenario está diseñado para fallar a propósito (el
+    // título real de la página nunca contendrá "ModuloAbout"), con el único
+    // fin de verificar que el hook global de Hooks.java efectivamente toma
+    // una captura de pantalla cuando un assert revienta, marcándola como
+    // FAIL_ en el nombre de archivo ─────────────────────────────────────────
 
     @Cuando("navega al módulo About")
     public void navega_al_modulo_about() {

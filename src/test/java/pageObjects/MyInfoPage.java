@@ -7,9 +7,7 @@ import org.openqa.selenium.WebElement;
 
 import java.util.List;
 
-/**
- * Page Object de My Info (edición de perfil del usuario logueado).
- */
+// page object de my info (para editar el perfil del que esta logueado)
 public class MyInfoPage extends BasePage {
 
     private static final By BTN_SAVE = By.xpath("//button[normalize-space()='Save']");
@@ -18,6 +16,11 @@ public class MyInfoPage extends BasePage {
         super(driver);
     }
 
+    // el nombre del campo viene directo del excel (de la columna "Campo"), por eso 
+    // lo paso a minusculas y lo engancho con el label real de orange. asi le podemos 
+    // meter mas filas al excel en español sin andar tocando el codigo. solo los casos raros 
+    // (onda si el label no es igual al del negocio o si es un dropdown en vez de texto) 
+    // tienen su propia rama aca en el switch. el resto cae en el default de una.
     public void actualizarCampo(String nombreCampo, String valorNuevo) {
         switch (nombreCampo.toLowerCase()) {
             case "nickname":
@@ -42,9 +45,14 @@ public class MyInfoPage extends BasePage {
             "/parent::div/following-sibling::div//input");
         try {
             WebElement campo = waitVisible(input);
+            // le mando ctrl+a + borrar en vez de usar clear() directo. el clear() a veces falla 
+            // si el campo tiene alguna mascara rara (tipo fechas o telefonos), asi que simulo 
+            // que alguien pinta todo el texto y lo borra a mano con el teclado
             campo.sendKeys(Keys.chord(Keys.CONTROL, "a"), Keys.DELETE);
             campo.sendKeys(valor);
         } catch (Exception e) {
+            // no todos los campos de my info salen en todas las versiones de la demo publica. si el campo 
+            // no esta, tiro un aviso por consola nomas pero no corto todo el test por un campo opcional
             System.out.println(label + " no disponible en esta versión del sistema");
         }
     }

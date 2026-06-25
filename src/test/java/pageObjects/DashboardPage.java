@@ -4,9 +4,7 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 
-/**
- * Page Object del Dashboard y acciones del header (menú usuario, navegación).
- */
+// page object del dashboard y cositas del header (el menu del usuario, moverse por ahi)
 public class DashboardPage extends BasePage {
 
     private static final By MENU_USUARIO = By.cssSelector(".oxd-userdropdown-tab");
@@ -47,6 +45,8 @@ public class DashboardPage extends BasePage {
         waitClickable(OPCION_LOGOUT).click();
     }
 
+    // aca le mando el longwait (30s) en vez del normal porque a veces ir al pim en esta demo publica 
+    // tarda una vida si hay mucha gente metida al mismo tiempo
     public void navegarAPim() {
         longWait.until(ExpectedConditions.elementToBeClickable(MENU_PIM)).click();
         longWait.until(ExpectedConditions.urlContains("/pim/viewEmployeeList"));
@@ -58,6 +58,9 @@ public class DashboardPage extends BasePage {
         waitForUrlContains("/pim/viewPersonalDetails");
     }
 
+    // saca el nombre del que esta logueado mirando el header. primero me fijo en el texto al lado de la foto, 
+    // si viene vacio (a veces el diseño carga solo la foto sin el nombre), busco el atributo alt de la 
+    // imagen por las dudas. si falla todo devuelvo "Admin" y listo porque total es la unica cuenta que usamos aca
     public String obtenerNombreUsuario() {
         try {
             String nombre = waitVisible(NOMBRE_USUARIO).getText().trim();

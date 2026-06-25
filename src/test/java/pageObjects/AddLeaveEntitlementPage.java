@@ -11,11 +11,11 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import java.time.Duration;
 import java.util.List;
 
-/**
- * Page Object de Add Leave Entitlement (asignación de créditos de licencia).
- */
+// page object de add leave entitlement (para meter dias de licencia)
 public class AddLeaveEntitlementPage extends BasePage {
 
+    // le clavo 3000 dias a proposito. la idea no es que sea un numero real, es nomas para que el 
+    // admin no se quede sin saldo cuando corremos el cp-14 a cada rato mientras arreglamos la suite
     private static final String ENTITLEMENT_CANTIDAD = "3000";
     private static final By RADIO_INDIVIDUAL = By.xpath(
         "//label[normalize-space()='Individual Employee']" +
@@ -41,6 +41,8 @@ public class AddLeaveEntitlementPage extends BasePage {
         esperarSinSpinner();
     }
 
+    // hace todo el flujo de una: abre el form, marca que es para un solo empleado (no toda la empresa), 
+    // busca al loco, elige que licencia darle y guarda. esto se llama una vez por cada tipo de licencia (son 3 para el cp-14)
     public void asignarEntitlementIndividual(String nombreUsuario, String tipoLicencia) {
         abrir();
         seleccionarIndividualEmployee();
@@ -62,6 +64,10 @@ public class AddLeaveEntitlementPage extends BasePage {
         }
     }
 
+    // aca escribo el nombre letra por letra y le meto una pausa chiquita entre medio para que parezca 
+    // que lo tipea alguien. orangehrm es medio mañoso y busca con cada tecla que tocas, si le pegas 
+    // todo de una se marea y a veces no te carga el dropdown. y solo agarro las dos primeras palabras 
+    // porque con nombre y apellido ya lo encuentra, si le meto mas texto capaz falla si es un nombre muy largo
     private void escribirNombreYSeleccionarSugerencia(String nombreUsuario, String tipoLicencia) {
         WebElement campoNombre = waitClickable(INPUT_AUTOCOMPLETE);
         campoNombre.click();
@@ -85,6 +91,8 @@ public class AddLeaveEntitlementPage extends BasePage {
         }
         pausa(800);
 
+        // despues de elegir, me fijo que orange no haya tirado un "invalid" en el campo 
+        // (pasa si el nombre que escribimos no existe en el sistema)
         List<WebElement> invalidos = driver.findElements(
             By.xpath("//span[normalize-space()='Invalid']"));
         if (!invalidos.isEmpty()) {
@@ -93,6 +101,9 @@ public class AddLeaveEntitlementPage extends BasePage {
         }
     }
 
+    // meto 3 formas de agarrar la sugerencia, de la mas exacta a la mas rustica. orange a veces 
+    // cambia las clases css del dropdown asi que si fallan los selectores le doy con el 
+    // teclado nomas (flechita abajo y enter) que te salva siempre si falla el mouse
     private boolean intentarClicEnSugerencia(WebElement campoNombre, String textoBusqueda) {
         try {
             WebElement opcion = new WebDriverWait(driver, Duration.ofSeconds(10))
@@ -145,6 +156,9 @@ public class AddLeaveEntitlementPage extends BasePage {
         System.out.println("ENTITLEMENTS: Entitlement ingresado -> " + ENTITLEMENT_CANTIDAD);
     }
 
+    // el modal para confirmar solo sale si el empleado ya tenia dias asignados antes en esa licencia. 
+    // si es la primera vez lo guarda de una sin preguntar. por eso espero el boton de confirm un par de segundos 
+    // nomas, y si no aparece sigo de largo porque no es error
     private void guardarYConfirmar(String tipoLicencia) {
         waitClickable(BTN_SAVE).click();
         esperarSinSpinner();

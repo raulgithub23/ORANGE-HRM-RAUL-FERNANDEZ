@@ -14,10 +14,7 @@ import pageObjects.PimEmployeeListPage;
 
 import java.io.IOException;
 
-/**
- * PPT 3.2.1 - Casos 5 al 8: Pruebas Data-Driven con Excel.
- * Registro, búsqueda, edición y eliminación de empleados.
- */
+// ppt 3.2.1 - casos 5 al 8: pruebas data-driven tirando del excel. armamos, buscamos, editamos y volamos empleados de prueba.
 public class EmpleadosSteps {
 
     private final Configuracion configuracion;
@@ -57,6 +54,8 @@ public class EmpleadosSteps {
         addEmployeePage().clickAgregarEmpleado();
     }
 
+    // el numero de fila viene directo del outline del escenario en el .feature (los examples: 1, 2, 3). asi que este step corre 3 veces agarrando un loco distinto 
+    // del excel cada vuelta, asi no ando duplicando pasos en el gherkin al pedo.
     @Y("carga nombre y apellido desde la fila {int} del archivo de empleados")
     public void carga_datos_empleado_excel(int fila) throws IOException {
         ExcelUtils excel = new ExcelUtils(
@@ -80,6 +79,9 @@ public class EmpleadosSteps {
         System.out.println("CASO 5 OK: Empleado registrado, ficha abierta");
     }
 
+    // el cp-06 recicla los empleados que creamos en el cp-05 (aca no importa el orden alfabetico 
+    // de los archivos .feature porque los dos casos viven en empleados.feature y cucumber los corre 
+    // en el orden que estan escritos). por eso el excel de datafiltros tiene los mismos nombres que el dataempleados.
     @Cuando("busca con los filtros de la fila {int} del archivo de filtros")
     public void busca_con_filtros_excel(int fila) throws IOException {
         ExcelUtils excel = new ExcelUtils(
@@ -90,6 +92,10 @@ public class EmpleadosSteps {
         pimListPage().buscarConFiltros(nombre, estado);
     }
 
+    // la columna 3 del excel dice que esperamos que pase con esos filtros. si tiene un "0", 
+    // espero que no encuentre nada (sin resultados). si tiene otra cosa, asumo que tiene que 
+    // encontrar al menos uno. con esto pruebo tanto los casos felices que devuelven data como 
+    // las busquedas que fallan a proposito (onda buscar como Inactive a alguien que esta Active).
     @Entonces("los resultados coinciden con lo esperado en la fila {int}")
     public void valida_resultados_excel(int fila) throws IOException {
         ExcelUtils excel = new ExcelUtils(

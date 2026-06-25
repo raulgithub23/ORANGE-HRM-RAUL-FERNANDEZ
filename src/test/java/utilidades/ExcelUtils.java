@@ -13,9 +13,14 @@ import java.io.IOException;
  * cuando dos step-classes distintas cargan hojas diferentes en la misma suite.
  * Convención de filas: fila 0 = cabecera, fila 1 = primer dato.
  *
+ * Convención de columnas usada en los Excel de este proyecto: la columna 0
+ * es siempre "NroFila" (un número de referencia visual para quien edita el
+ * Excel a mano, no se usa en el código), por eso los datos reales empiezan
+ * en la columna 1 en adelante.
+ *
  * Uso recomendado:
  *   ExcelUtils excel = new ExcelUtils("src/test/resources/testData/dataEmpleados.xlsx", "Empleados");
- *   String nombre = excel.getCellData(1, 0);
+ *   String nombre = excel.getCellData(1, 1); // fila 1 = primer dato, columna 1 = "Nombre"
  */
 public class ExcelUtils {
 

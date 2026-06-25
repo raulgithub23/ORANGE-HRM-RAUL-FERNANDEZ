@@ -24,8 +24,16 @@ public class Utility {
     }
 
     /**
-     * Toma screenshot y lo guarda en la ruta indicada.
-     * Crea el directorio automáticamente si no existe.
+     * Toma screenshot usando el método nativo de Selenium (TakesScreenshot)
+     * y lo guarda en la ruta indicada. Crea el directorio automáticamente
+     * si no existe.
+     *
+     * Nota: este método NO se usa actualmente en ningún step ni hook de la
+     * suite. Se mantiene en el código como referencia histórica: fue el
+     * mecanismo original de captura de evidencia, pero se reemplazó por
+     * java.awt.Robot en Hooks.java porque TakesScreenshot devolvía imágenes
+     * en blanco en esta máquina (ver el comentario de clase en Hooks.java
+     * para el detalle completo del problema y la solución).
      *
      * @param driver       WebDriver activo
      * @param rutaDestino  Ruta relativa, p.ej. "evidencias/CP01_LoginExitoso_20260101_120000.png"

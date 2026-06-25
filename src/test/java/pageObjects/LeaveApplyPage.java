@@ -11,9 +11,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import java.time.Duration;
 import java.util.List;
 
-/**
- * Page Object del formulario Apply Leave (solicitud de licencias).
- */
+// page object del form apply leave (para pedir los dias de licencia)
 public class LeaveApplyPage extends BasePage {
 
     private static final By SELECT_LEAVE_TYPE = By.xpath(
@@ -42,6 +40,10 @@ public class LeaveApplyPage extends BasePage {
             "/following::div[contains(@class,'oxd-select-wrapper')][1]"));
     }
 
+    // le meto hasta 3 intentos para elegir la licencia. a veces el dropdown de orange se cierra solo 
+    // justo cuando vas a hacer clic (seguro por algun render de react que corre de fondo). si pasa eso 
+    // le doy un clic al body para destrabar el dropdown y pruebo de nuevo. si ya falla 3 veces ahi si 
+    // que tire error y explote todo
     public void seleccionarTipoLicencia(String tipo) {
         esperarSinSpinner();
         for (int intento = 0; intento < 3; intento++) {
@@ -70,6 +72,8 @@ public class LeaveApplyPage extends BasePage {
 
     public void ingresarFechas(String desde, String hasta) {
         escribirFecha(INPUT_FROM_DATE, desde);
+        // un clic perdido en el form (afuera del input) para sacar el foco y forzar a que el 
+        // calendario flotante de orange se cierre antes de seguir con otra cosa
         driver.findElement(FORM).click();
         esperarSinSpinner();
         escribirFecha(INPUT_TO_DATE, hasta);
@@ -77,6 +81,9 @@ public class LeaveApplyPage extends BasePage {
         esperarSinSpinner();
     }
 
+    // limpio el campo de dos formas juntas (con js al value y despues ctrl+a + borrar). orange le 
+    // mete una mascara a las fechas que a veces ignora el clear normal de selenium y te deja 
+    // pedazos de la fecha vieja mezclados con la nueva, una mugre
     private void escribirFecha(By locator, String fecha) {
         WebElement input = waitVisible(locator);
         input.click();
@@ -86,6 +93,9 @@ public class LeaveApplyPage extends BasePage {
         input.sendKeys(Keys.TAB);
     }
 
+    // la cajita del leave balance tarda un poco en refrescar despues de elegir la licencia (le pega al server 
+    // para calcular los dias). aca espero a que el texto deje de estar vacio o deje de decir solo "Leave Balance". 
+    // si pasan 10 segs y no pasa nada le clavo una pausa de 2 segs por las dudas antes de seguir con el form
     private void esperarLeaveBalanceCargado() {
         try {
             esperarSinSpinner();

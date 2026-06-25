@@ -5,9 +5,7 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 
-/**
- * Page Object del formulario de alta de empleado (PIM > Add Employee).
- */
+// page object del form para agregar un empleado nuevo (pim > add employee)
 public class AddEmployeePage extends BasePage {
 
     private static final By BTN_ADD = By.cssSelector(".orangehrm-header-container .oxd-button--secondary");
@@ -26,6 +24,8 @@ public class AddEmployeePage extends BasePage {
     }
 
     public void completarNombre(String nombre, String apellido) {
+        // le meto un clear() antes del sendkeys porque a veces el campo te trae un placeholder o el navegador te autocompleta algo, asi que lo limpio a mano para asegurarme 
+        // de que quede tal cual lo que viene del excel y no se junte con basura
         WebElement inputNombre = waitVisible(INPUT_FIRST_NAME);
         inputNombre.clear();
         inputNombre.sendKeys(nombre);
@@ -40,6 +40,8 @@ public class AddEmployeePage extends BasePage {
         esperarSinSpinner();
     }
 
+    // despues de darle a guardar, orange te tira directo a la ficha del loco que acabas de crear 
+    // (personal details). espero a que cargue esa url asi confirmo que se guardo bien antes de seguir con otra cosa
     public void esperarFichaPersonal() {
         longWait.until(ExpectedConditions.urlContains("/pim/viewPersonalDetails"));
     }

@@ -10,9 +10,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import java.time.Duration;
 import java.util.List;
 
-/**
- * Page Object de Leave List (búsqueda y cancelación de solicitudes).
- */
+// page object de leave list (para buscar y cancelar las licencias)
 public class LeaveListPage extends BasePage {
 
     private static final By BTN_SEARCH = By.xpath(
@@ -49,6 +47,9 @@ public class LeaveListPage extends BasePage {
         return driver.findElements(FILAS).size();
     }
 
+    // cancela la primera licencia que aparece en la tabla. lo uso para limpiar despues de correr 
+    // el cp-14 (mira el metodo cancelarSolicitudesPendientes): cada cosa que mete el cp-14 hay que 
+    // volarla despues para que la demo publica no se llene de basura de otras pruebas y nos deje sin saldo
     public boolean cancelarPrimeraSolicitud() {
         List<WebElement> filas = driver.findElements(FILAS);
         if (filas.isEmpty()) {
@@ -77,12 +78,18 @@ public class LeaveListPage extends BasePage {
             new WebDriverWait(driver, Duration.ofSeconds(8))
                 .until(ExpectedConditions.invisibilityOfElementLocated(TOAST));
         } catch (Exception e) {
+            // si el cartelito verde (toast) no sale o se queda pegado, le clavo una pausa de un par 
+            // de segundos por las dudas. prefiero perder tiempo aca a que se me rompa el test por 
+            // intentar hacer otra cosa mientras todavia esta cargando
             pausa(2000);
         }
         esperarSinSpinner();
         return true;
     }
 
+    // meto dos formas de buscar y darle al boton cancel. la primera es con el xpath normal. si orange 
+    // se pone mañoso o tarda en renderizar, la segunda busca todos los botones con js hasta encontrar 
+    // el que dice "Cancel". hago esto porque el boton recien aparece de la nada cuando marcas el checkbox
     private boolean clickCancelButton() {
         try {
             WebElement btnCancel = new WebDriverWait(driver, Duration.ofSeconds(10))
@@ -105,6 +112,10 @@ public class LeaveListPage extends BasePage {
         }
     }
 
+    // postcondicion del cp-14: vuela todas las licencias que hayan quedado colgadas, le pongo un tope 
+    // (maxCancelaciones) para no quedarme trabado en un loop infinito si falla algo. hay que limpiar si o si 
+    // porque al ser compartida la demo publica, si no borramos se nos acumulan los datos de prueba y 
+    // rompe todo para los demas o para cuando queramos correr la suite de nuevo
     public void cancelarSolicitudesPendientes(int maxCancelaciones) {
         pausa(2000);
         abrir();

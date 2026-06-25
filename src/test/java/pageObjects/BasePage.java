@@ -9,9 +9,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.time.Duration;
 
-/**
- * Clase base con utilidades compartidas por todos los Page Objects.
- */
+// clase base con cosas que comparten todos los page objects
 public abstract class BasePage {
 
     public static final String BASE_URL =
@@ -32,6 +30,8 @@ public abstract class BasePage {
     }
 
     protected void esperarSinSpinner() {
+        // orange muestra un spinner (.oxd-loading-spinner-container) cuando carga cosas ajax. si le damos clic mientras gira, selenium puede fallar 
+        // porque el elemento aun no se puede tocar. el catch vacio lo deje asi a proposito, si el spinner no sale (onda cargo muy rapido) no pasa nada, no es error
         try {
             new WebDriverWait(driver, Duration.ofSeconds(5))
                 .until(ExpectedConditions.invisibilityOfElementLocated(
@@ -55,15 +55,21 @@ public abstract class BasePage {
         waitClickable(locator).click();
     }
 
+    // clic con js en vez del click normal: salva bastante cuando el elemento esta ahi pero algo de la ui de orangehrm lo tapa 
+    // (un tooltip o algo) y selenium se queja de que no es clickeable
     protected void clickWithJs(WebElement element) {
         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
     }
 
+    // pone el elemento en el centro de la pantalla antes de hacerle cosas. sirve mas que nada en tablas grandes o forms donde el elemento 
+    // esta en el dom pero no se ve en pantalla, asi evitamos que tire timeout por no scrollear antes
     protected void scrollIntoView(WebElement element) {
         ((JavascriptExecutor) driver).executeScript(
             "arguments[0].scrollIntoView({block:'center'});", element);
     }
 
+    // pausa a lo bruto con sleep. la uso solo cuando no queda otra en partes muy puntuales donde las esperas de selenium se quedan cortas 
+    // con las animaciones raras de orangehrm (por ej cuando se abre un dropdown para autocompletar)
     protected void pausa(long ms) {
         try { Thread.sleep(ms); } catch (InterruptedException ignored) {}
     }

@@ -4,9 +4,7 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 
-/**
- * Page Object del formulario de login de OrangeHRM.
- */
+// page object del form de login de orangehrm
 public class LoginPage extends BasePage {
 
     private static final By INPUT_USERNAME = By.name("username");
@@ -37,6 +35,10 @@ public class LoginPage extends BasePage {
         clickLogin();
     }
 
+    // login de una con las credenciales de admin de la demo (Admin / admin123). lo uso como 
+    // precondicion en los steps de los modulos que no estan testeando el login en si (onda empleados, 
+    // perfil, licencias, etc), asi no tengo que repetir la movida de "ir al login + escribir + click" 
+    // a cada rato en cada step definition distinto
     public void loginPorDefecto() {
         abrir(BASE_URL + "/auth/login");
         login("Admin", "admin123");
